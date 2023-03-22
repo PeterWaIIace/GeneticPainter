@@ -1,5 +1,7 @@
 import GeneticAlgorithm as GA
+from tqdm import tqdm
 import numpy as np
+import imageio
 import time
 import cv2
 
@@ -14,13 +16,16 @@ def timeit(function):
 
 class Painter:
 
-    def __init__(self,height,width,reference):
-        self.img = np.zeros((height,width,1), np.uint8)
+    def __init__(self,reference):
+        self.frames = []
+        self.fps = 500
+        self.reference = reference
         self.refImg = cv2.imread(reference, cv2.IMREAD_GRAYSCALE)
+        self.height = self.refImg.shape[0]
+        self.width  = self.refImg.shape[1]
+        self.img = np.zeros((self.height,self.width,1), np.uint8)
         self.lowestScore = 1000000000
         self.blurKernelSize = 1
-        self.width  = 480
-        self.height = 480
 
         self.brush = np.zeros((20,20,1))
         cv2.circle(self.brush,(10,10), 10, 255,-1)
@@ -73,7 +78,7 @@ class Painter:
 
         return (totalDiff,copyImg)
 
-    @timeit
+    # @timeit
     def epoch(self,epoch,genomes,population):
         errorScores = self.paint(genomes)
         genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=int(10),maxPopulation=population)
@@ -86,19 +91,23 @@ class Painter:
 
         return genomes
 
-    def run(self,genLen = 20*4,population = 100, epochs = 4000):
+    def run(self,genLen = 20*4,population = 200, epochs = 4000):
         self.genLen = genLen
         genomes = [np.random.randint(2**31,size=(self.genLen)) for _ in range(population)]
 
-        for epoch in range(epochs):
+        for epoch in tqdm(range(epochs)):
             genomes = self.epoch(epoch,genomes,population)
+
+            if epoch%int(self.fps/30):
+                self.frames.append(self.img)
+
+        imageio.mimsave(f'{self.reference}.gif', self.frames, fps=30)
 
     # @timeit
     def paintTheBest(self):
 
         cv2.imshow('painted image',self.img)
         cv2.imshow('reference image',self.blurredImg)
-        print(self.lowestScore)
         if self.lowestScore == 0.0:
             cv2.waitKey(0)
         else:
@@ -108,7 +117,7 @@ class Painter:
 
 
 if __name__=="__main__":
-    painter = Painter(480, 480,"Lena.png")
+    painter = Painter("city.jpg")
     painter.run()
 
 

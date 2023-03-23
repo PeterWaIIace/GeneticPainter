@@ -3,6 +3,7 @@ from tqdm import tqdm
 import numpy as np
 import imageio
 import time
+import sys
 import cv2
 
 def timeit(function):
@@ -117,7 +118,7 @@ class Painter:
 
 
 if __name__=="__main__":
-    painter = Painter("city.jpg")
+    painter = Painter(sys.argv[1])
     painter.run()
 
 

@@ -95,9 +95,23 @@ def __mutateMany(genomes,ms,rate=0.5):
     return genomes
 
 
+forbiddenGenomes = dict()
+# check if genomes are in forbidden dict
+def filterGenomes(genomes):
+    for n,genome in enumerate(genomes):
+        while genome.tobytes() in forbiddenGenomes.keys():
+            genome = mutate(genome,1)
+        genomes[n] = genome
+
+    return genomes
+
+def addToForbiddenGenomes(genomes):
+    for genome in genomes:
+        forbiddenGenomes[genome.tobytes()] = 1
+
 # msR - mutation strength of rest
 # msS - mutation strength of superior
-def mixAndMutate(genomes,scores,mr=0.5,ms=2,maxPopulation=50):
+def mixAndMutate(genomes,scores,mr=0.5,ms=2,maxPopulation=50,genomePurifying=False):
 
     assert(isinstance(genomes[0],np.ndarray))
 
@@ -113,6 +127,10 @@ def mixAndMutate(genomes,scores,mr=0.5,ms=2,maxPopulation=50):
     newGeneration = newGeneration[:maxPopulation-1] + [superior[0]]
     # newGeneration = newGeneration[:maxPopulation-2] + superior
     # newGeneration = newGeneration[:]
+
+    if genomePurifying == True:
+        addToForbiddenGenomes(rest)
+        newGeneration = filterGenomes(newGeneration)
 
     assert(isinstance(newGeneration[0],np.ndarray))
     return newGeneration

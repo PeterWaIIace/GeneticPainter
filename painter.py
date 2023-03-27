@@ -82,7 +82,7 @@ class Painter:
     # @timeit
     def epoch(self,epoch,genomes,population):
         errorScores = self.paint(genomes)
-        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=int(10),maxPopulation=population)
+        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=int(10),maxPopulation=population,genomePurifying=True)
 
         self.paintTheBest()
 

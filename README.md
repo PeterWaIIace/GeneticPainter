@@ -24,6 +24,7 @@ Without genomes removal:
 ## How to use
 
 ```
+python3 -m pip install -r requirements.txt
 python3 painter.py Lena.png
 ```
 

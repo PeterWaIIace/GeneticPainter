@@ -92,7 +92,7 @@ class Painter:
 
         return genomes
 
-    def run(self,genLen = 20*4,population = 200, epochs = 4000):
+    def run(self,genLen = 20*4,population = 200, epochs = 6000):
         self.genLen = genLen
         genomes = [np.random.randint(2**31,size=(self.genLen)) for _ in range(population)]
 

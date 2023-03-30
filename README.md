@@ -2,7 +2,7 @@
 My take on genetic painters - algorithm painting reference image using genetic algorithms with crossover and mutations.
 
 All results are achieved by pure crossover and mutation, no changes or masking to reference image are performed. Algorithm learns by comparing difference between generation and reference image.
-Results are speed up as details generation can take a while. Algorithm is armed in genomes removal mechanism, which removes bad genomes.
+Results are speed up as details generation can take a while. Algorithm is armed with genomes removal mechanism, which removes bad genomes from possibility space.
 
 With genomes removal:
 <p align="center">
@@ -13,6 +13,13 @@ With genomes removal:
 <p align="center">
   <img src=https://user-images.githubusercontent.com/40773550/227058736-05288799-372a-478e-8438-4cf3278cb5fb.jpg>
   <img src=https://user-images.githubusercontent.com/40773550/228823398-426f4754-0f39-47e8-b9ce-eb4787787c3f.gif>
+</p>
+
+
+With genomes removal in colour:
+
+<p align="center">
+  <img src=https://user-images.githubusercontent.com/40773550/228984764-37cecee3-1a10-46f2-9044-478daee041b1.gif width="240" height="240">
 </p>
 
 Without genomes removal:

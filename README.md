@@ -10,7 +10,13 @@ With genomes removal:
   <img src=https://user-images.githubusercontent.com/40773550/228100220-3f8be211-896a-440f-9829-57247c1e3208.gif width="240" height="240">
 </p>
 
+<p align="center">
+  <img src=https://user-images.githubusercontent.com/40773550/227058736-05288799-372a-478e-8438-4cf3278cb5fb.jpg>
+  <img src=https://user-images.githubusercontent.com/40773550/228823398-426f4754-0f39-47e8-b9ce-eb4787787c3f.gif>
+</p>
+
 Without genomes removal:
+
 <p align="center">
   <img src=https://user-images.githubusercontent.com/40773550/227058736-05288799-372a-478e-8438-4cf3278cb5fb.jpg>
   <img src=https://user-images.githubusercontent.com/40773550/227059714-6f07d2cd-d3a9-415e-87c9-4f5adc20aed5.gif>

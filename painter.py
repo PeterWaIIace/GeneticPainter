@@ -17,14 +17,24 @@ def timeit(function):
 
 class Painter:
 
-    def __init__(self,reference):
+    def __init__(self,reference,greyScale=True):
         self.frames = []
-        self.fps = 500
+        self.fps = 2000
         self.reference = reference
-        self.refImg = cv2.imread(reference, cv2.IMREAD_GRAYSCALE)
+        self.greyScale = greyScale
+        if self.greyScale:
+            self.refImg = cv2.imread(reference, cv2.IMREAD_GRAYSCALE)
+        else:
+            self.refImg = cv2.imread(reference)
+
+        # resize if is too big
+        if self.refImg.shape[0] > 400 or self.refImg.shape[1] > 400:
+            ratio = self.refImg.shape[0]/self.refImg.shape[1]
+            self.refImg = cv2.resize(self.refImg, (int(400/ratio),400))
+
         self.height = self.refImg.shape[0]
         self.width  = self.refImg.shape[1]
-        self.img = np.zeros((self.height,self.width,1), np.uint8)
+        self.img = np.zeros(self.refImg.shape, np.uint8)
         self.lowestScore = 1000000000
         self.blurKernelSize = 1
 
@@ -57,12 +67,17 @@ class Painter:
         copyImg = np.copy(self.img)
         cpBrush = np.copy(self.brush)
 
-        pos_x,pos_y,radius,colors = [0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[0]*self.genLen
+        pos_x,pos_y,radius,colors = [0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[(0,0,0)]*self.genLen
         for n in range(0,len(genome),4):
             pos_x[int(n/4)]  = int(genome[n]%480)
             pos_y[int(n/4)]  = int(genome[n+1]%480)
             radius[int(n/4)] = int(genome[n+2]%480)
-            colors[int(n/4)] = int(genome[n+3]%255)
+            if self.greyScale:
+                colors[int(n/4)] = int(genome[n+3]%255)
+            else:
+                colors[int(n/4)] = (int(genome[n+3]%255),int((genome[n+3]/1000)%255) ,int((genome[n+3]/1000000)%255))
+            # colors[int(n/4)][1] = int((genome[n+3]/1000)%255)
+            # colors[int(n/4)][2] = int((genome[n+3]/1000000)%255)
 
         # print(colors)
         for x,y,r,color in zip(pos_x,pos_y,radius,colors):
@@ -100,7 +115,10 @@ class Painter:
             genomes = self.epoch(epoch,genomes,population)
 
             if epoch%int(self.fps/30):
-                self.frames.append(self.img)
+                if self.greyScale:
+                    self.frames.append(self.img)
+                else:
+                    self.frames.append(cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR))
 
         imageio.mimsave(f'{self.reference}.gif', self.frames, fps=30)
 
@@ -118,7 +136,7 @@ class Painter:
 
 
 if __name__=="__main__":
-    painter = Painter(sys.argv[1])
+    painter = Painter(sys.argv[1],False)
     painter.run()
 
 

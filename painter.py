@@ -1,6 +1,7 @@
 import GeneticAlgorithm as GA
 from tqdm import tqdm
 import numpy as np
+import argparse
 import imageio
 import time
 import sys
@@ -15,6 +16,11 @@ def timeit(function):
         return retVal
     return timing
 
+def rotate_image(image, angle):
+  image_center = tuple(np.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  return result
 class Painter:
 
     def __init__(self,reference,greyScale=True):
@@ -37,9 +43,13 @@ class Painter:
         self.img = np.zeros(self.refImg.shape, np.uint8)
         self.lowestScore = 1000000000
         self.blurKernelSize = 1
-
-        self.brush = np.zeros((20,20,1))
-        cv2.circle(self.brush,(10,10), 10, 255,-1)
+        
+        self.brush = cv2.imread('brushes/brush_1.png', cv2.IMREAD_GRAYSCALE)
+        self.brush = cv2.bitwise_not(self.brush,self.brush)
+        
+        # # here change brushes
+        # self.brush = np.zeros((20,20,1))
+        # cv2.circle(self.brush,(10,10), 10, 255,-1)
 
     # @timeit
     def paint(self,genomes):
@@ -63,26 +73,41 @@ class Painter:
     # @timeit
     def decode(self,genome):
 
-        overlay = np.copy(self.img)
-        copyImg = np.copy(self.img)
-        cpBrush = np.copy(self.brush)
 
-        pos_x,pos_y,radius,colors = [0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[(0,0,0)]*self.genLen
-        for n in range(0,len(genome),4):
-            pos_x[int(n/4)]  = int(genome[n]%480)
-            pos_y[int(n/4)]  = int(genome[n+1]%480)
-            radius[int(n/4)] = int(genome[n+2]%480)
+        pos_x,pos_y,radius, rotation, colors = [0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[(0,0,0)]*self.genLen
+        for n in range(0,len(genome),self.n_params):
+            pos_x[int(n/self.n_params)]  = int(genome[n]%480)
+            pos_y[int(n/self.n_params)]  = int(genome[n+1]%480)
+            radius[int(n/self.n_params)] = int(genome[n+2]%480)
+            rotation[int(n/self.n_params)] = int(genome[n+3]%360)
             if self.greyScale:
-                colors[int(n/4)] = int(genome[n+3]%255)
+                colors[int(n/self.n_params)] = int(genome[n+4]%255)
             else:
-                colors[int(n/4)] = (int(genome[n+3]%255),int((genome[n+3]/1000)%255) ,int((genome[n+3]/1000000)%255))
-            # colors[int(n/4)][1] = int((genome[n+3]/1000)%255)
-            # colors[int(n/4)][2] = int((genome[n+3]/1000000)%255)
+                colors[int(n/self.n_params)] = (int(genome[n+4]%255),int((genome[n+4]/1000)%255) ,int((genome[n+4]/1000000)%255))
 
         # print(colors)
-        for x,y,r,color in zip(pos_x,pos_y,radius,colors):
-            cv2.circle(copyImg,(x,y), int(r%60), color,-1)
+        
+        overlay = np.copy(self.img)
+        copyImg = np.copy(self.img)
+        for x,y,r,rot,color in zip(pos_x,pos_y,radius,rotation,colors):
+            brush_background = np.zeros(copyImg.shape, dtype="uint8")
+            mask = np.zeros(copyImg.shape[:2], dtype="uint8")
+            r = r%200
+            if r == 0:
+                continue
 
+            brush_rotated = rotate_image(self.brush,rot) 
+            brush_resized = cv2.resize(brush_rotated,(r,r))
+            brush_w, brush_h = mask[x:x+r,y:y+r].shape[:2]
+
+            mask[x:x+r,y:y+r] = brush_resized[:brush_w,:brush_h]
+            (thresh, mask) = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
+        
+            cv2.rectangle(brush_background,(0,0), copyImg.shape[:2] , color,-1)
+            masked_brush = cv2.bitwise_and(brush_background,brush_background,mask=mask)
+            masked_img = cv2.bitwise_and(copyImg,copyImg,mask=cv2.bitwise_not(mask,mask))
+            copyImg = cv2.bitwise_or(masked_img.copy(),masked_brush.copy())
+            
         copyImg = cv2.addWeighted(overlay,0.5,copyImg,0.5,0)
         # calculate score
         self.blurredImg = cv2.blur(self.refImg, (self.blurKernelSize, self.blurKernelSize))
@@ -107,8 +132,9 @@ class Painter:
 
         return genomes
 
-    def run(self,genLen = 20*4,population = 200, epochs = 6000):
-        self.genLen = genLen
+    def run(self,genLen = 20, n_params = 5,population = 200, epochs = 1000):
+        self.n_params = n_params
+        self.genLen = genLen * self.n_params
         genomes = [np.random.randint(2**31,size=(self.genLen)) for _ in range(population)]
 
         for epoch in tqdm(range(epochs)):
@@ -136,8 +162,13 @@ class Painter:
 
 
 if __name__=="__main__":
-    painter = Painter(sys.argv[1],False)
-    painter.run()
+    parser = argparse.ArgumentParser("Genetic Painter")
+    parser.add_argument("-f", '--file', dest="file", help="Reference picture", type=str, default="Lena.png")
+    parser.add_argument("-cb", '--concurent_brushes', dest="concurent_brushes", help="Number of concurent brushes to run", type=int, default=20)
+    args = parser.parse_args()
+
+    painter = Painter(args.file,False)
+    painter.run(args.concurent_brushes)
 
 
 # Load image using PIL

@@ -1,6 +1,9 @@
 # GeneticPainter
 My take on genetic painters - algorithm painting reference image using genetic algorithms with crossover and mutations.
 
+![lena](https://github.com/PeterWaIIace/GeneticPainter/assets/40773550/a358f9c7-b862-488e-8603-c27a79675bf9)
+
+
 All results are achieved by pure crossover and mutation, no changes or masking to reference image are performed. Algorithm learns by comparing difference between generation and reference image.
 Results are speed up as details generation can take a while. Algorithm is armed with genomes removal mechanism, which removes bad genomes from possibility space.
 

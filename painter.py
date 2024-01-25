@@ -1,4 +1,5 @@
 import GeneticAlgorithm as GA
+import moviepy.editor as mp
 from tqdm import tqdm
 import numpy as np
 import argparse
@@ -40,7 +41,7 @@ class Painter:
 
         self.height = self.refImg.shape[0]
         self.width  = self.refImg.shape[1]
-        self.img = np.zeros(self.refImg.shape, np.uint8)
+        self.img = np.ones(self.refImg.shape, np.uint8) * 255
         self.lowestScore = 1000000000
         self.blurKernelSize = 1
         
@@ -102,13 +103,13 @@ class Painter:
 
             mask[x:x+r,y:y+r] = brush_resized[:brush_w,:brush_h]
             (thresh, mask) = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
-        
-            cv2.rectangle(brush_background,(0,0), copyImg.shape[:2] , color,-1)
+
+            cv2.rectangle(brush_background,(0,0), (copyImg.shape[1],copyImg.shape[0]) , color,-1)
             masked_brush = cv2.bitwise_and(brush_background,brush_background,mask=mask)
             masked_img = cv2.bitwise_and(copyImg,copyImg,mask=cv2.bitwise_not(mask,mask))
             copyImg = cv2.bitwise_or(masked_img.copy(),masked_brush.copy())
-            
         copyImg = cv2.addWeighted(overlay,0.5,copyImg,0.5,0)
+
         # calculate score
         self.blurredImg = cv2.blur(self.refImg, (self.blurKernelSize, self.blurKernelSize))
 
@@ -126,7 +127,7 @@ class Painter:
 
         self.paintTheBest()
 
-        if self.blurKernelSize > 1 and epoch % 10 == 0:
+        if self.blurKernelSize > 1 and epoch % 20 == 0:
             self.blurKernelSize -= 5
             self.blurKernelSize = max(self.blurKernelSize,1)
 
@@ -146,7 +147,9 @@ class Painter:
                 else:
                     self.frames.append(cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR))
 
-        imageio.mimsave(f'{self.reference}.gif', self.frames, fps=30)
+        imageio.mimsave(f'{self.reference[:-4]}.gif', self.frames, fps=30)
+        clip = mp.VideoFileClip(f'{self.reference[:-4]}.gif')
+        clip.write_videofile(f'{self.reference[:-4]}.mp4')
 
     # @timeit
     def paintTheBest(self):
@@ -165,9 +168,10 @@ if __name__=="__main__":
     parser = argparse.ArgumentParser("Genetic Painter")
     parser.add_argument("-f", '--file', dest="file", help="Reference picture", type=str, default="Lena.png")
     parser.add_argument("-cb", '--concurent_brushes', dest="concurent_brushes", help="Number of concurent brushes to run", type=int, default=20)
+    parser.add_argument("-g", '--gray', dest="gray_scale", help="Decides if you want image in greyscale or not", type=bool, default=False)
     args = parser.parse_args()
 
-    painter = Painter(args.file,False)
+    painter = Painter(args.file,args.gray_scale)
     painter.run(args.concurent_brushes)
 
 

@@ -7,6 +7,7 @@ import imageio
 import time
 import sys
 import cv2
+import os
 
 def timeit(function):
     def timing(*args, **kwargs):
@@ -45,8 +46,13 @@ class Painter:
         self.lowestScore = 1000000000
         self.blurKernelSize = 1
         
-        self.brush = cv2.imread('brushes/brush_1.png', cv2.IMREAD_GRAYSCALE)
-        self.brush = cv2.bitwise_not(self.brush,self.brush)
+        self.brushes = []
+        f_brushes = os.listdir("brushes/")
+        for f_brush in f_brushes:
+            print(f_brush)
+            brush = cv2.imread(f'brushes/{f_brush}', cv2.IMREAD_GRAYSCALE)
+            brush = cv2.bitwise_not(brush,brush)
+            self.brushes.append(brush)
         
         # # here change brushes
         # self.brush = np.zeros((20,20,1))
@@ -74,35 +80,36 @@ class Painter:
     # @timeit
     def decode(self,genome):
 
-
-        pos_x,pos_y,radius, rotation, colors = [0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[(0,0,0)]*self.genLen
+        length = int(self.genLen/self.n_params)
+        pos_x,pos_y,radius, rotation, brushes, colors = [0]*length,[0]*length,[0]*length,[0]*length,[None]*length,[(0,0,0)]*length
         for n in range(0,len(genome),self.n_params):
             pos_x[int(n/self.n_params)]  = int(genome[n]%480)
             pos_y[int(n/self.n_params)]  = int(genome[n+1]%480)
             radius[int(n/self.n_params)] = int(genome[n+2]%480)
-            rotation[int(n/self.n_params)] = int(genome[n+3]%360)
+            brushes[int(n/self.n_params)] = self.brushes[int(genome[n+3])%3]
+            rotation[int(n/self.n_params)] = int(genome[n+4]%360)
             if self.greyScale:
-                colors[int(n/self.n_params)] = int(genome[n+4]%255)
+                colors[int(n/self.n_params)] = int(genome[n+5]%255)
             else:
-                colors[int(n/self.n_params)] = (int(genome[n+4]%255),int((genome[n+4]/1000)%255) ,int((genome[n+4]/1000000)%255))
+                colors[int(n/self.n_params)] = (int(genome[n+5]%255),int((genome[n+5]/1000)%255) ,int((genome[n+5]/1000000)%255))
 
         # print(colors)
         
         overlay = np.copy(self.img)
         copyImg = np.copy(self.img)
-        for x,y,r,rot,color in zip(pos_x,pos_y,radius,rotation,colors):
+        for x,y,r,rot, brush, color in zip(pos_x,pos_y,radius,rotation, brushes, colors):
             brush_background = np.zeros(copyImg.shape, dtype="uint8")
             mask = np.zeros(copyImg.shape[:2], dtype="uint8")
             r = r%200
             if r == 0:
-                continue
+                r = 1
 
-            brush_rotated = rotate_image(self.brush,rot) 
+            brush_rotated = rotate_image(brush,rot) 
             brush_resized = cv2.resize(brush_rotated,(r,r))
             brush_w, brush_h = mask[x:x+r,y:y+r].shape[:2]
 
             mask[x:x+r,y:y+r] = brush_resized[:brush_w,:brush_h]
-            (thresh, mask) = cv2.threshold(mask, 10, 255, cv2.THRESH_BINARY)
+            (thresh, mask) = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
 
             cv2.rectangle(brush_background,(0,0), (copyImg.shape[1],copyImg.shape[0]) , color,-1)
             masked_brush = cv2.bitwise_and(brush_background,brush_background,mask=mask)
@@ -133,7 +140,7 @@ class Painter:
 
         return genomes
 
-    def run(self,genLen = 20, n_params = 5,population = 200, epochs = 1000):
+    def run(self,genLen = 20, n_params = 6,population = 200, epochs = 1000):
         self.n_params = n_params
         self.genLen = genLen * self.n_params
         genomes = [np.random.randint(2**31,size=(self.genLen)) for _ in range(population)]

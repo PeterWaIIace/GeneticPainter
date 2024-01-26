@@ -49,7 +49,6 @@ class Painter:
         self.brushes = []
         f_brushes = os.listdir("brushes/")
         for f_brush in f_brushes:
-            print(f_brush)
             brush = cv2.imread(f'brushes/{f_brush}', cv2.IMREAD_GRAYSCALE)
             brush = cv2.bitwise_not(brush,brush)
             self.brushes.append(brush)

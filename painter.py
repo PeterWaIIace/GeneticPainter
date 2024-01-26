@@ -86,7 +86,7 @@ class Painter:
             pos_x[int(n/self.n_params)]  = int(genome[n]%480)
             pos_y[int(n/self.n_params)]  = int(genome[n+1]%480)
             radius[int(n/self.n_params)] = int(genome[n+2]%480)
-            brushes[int(n/self.n_params)] = self.brushes[int(genome[n+3])%3]
+            brushes[int(n/self.n_params)] = self.brushes[int(genome[n+3])%len(self.brushes)]
             rotation[int(n/self.n_params)] = int(genome[n+4]%360)
             if self.greyScale:
                 colors[int(n/self.n_params)] = int(genome[n+5]%255)

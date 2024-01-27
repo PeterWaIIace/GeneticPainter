@@ -1,6 +1,7 @@
 import GeneticAlgorithm as GA
 import moviepy.editor as mp
 from tqdm import tqdm
+import concurrent.futures
 import numpy as np
 import argparse
 import imageio
@@ -23,6 +24,18 @@ def rotate_image(image, angle):
   rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
   result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
   return result
+
+def alphaBlend(img1, img2, mask):
+    """ alphaBlend img1 and img 2 (of CV_8UC3) with mask (CV_8UC1 or CV_8UC3)
+    """
+    if img2.ndim<3:
+        alpha = mask/255.0
+    else:
+        alpha = cv2.cvtColor(mask, cv2.COLOR_GRAY2BGR)/255.0
+        
+    blended = cv2.convertScaleAbs(img1*(1-alpha) + img2*alpha)
+    return blended
+
 class Painter:
 
     def __init__(self,reference,greyScale=True):
@@ -43,9 +56,13 @@ class Painter:
         self.height = self.refImg.shape[0]
         self.width  = self.refImg.shape[1]
         self.img = np.ones(self.refImg.shape, np.uint8) * 255
+
+        # self.blurKernelSize = 1201
+        # self.size_of_unblur = 30
+        # self.update_blur(self.refImg)
+
         self.lowestScore = 1000000000
-        self.blurKernelSize = 1
-        
+        self.brush_background = np.zeros(self.img.shape, dtype="uint8")    
         self.brushes = []
         f_brushes = os.listdir("brushes/")
         for f_brush in f_brushes:
@@ -61,11 +78,14 @@ class Painter:
     def paint(self,genomes):
 
         theBestCopy = []
-        results = []
+        error_results = []
 
+        # for genome in genomes:
         for genome in genomes:
             errorScores ,copyImg = self.decode(genome)
-            results.append(errorScores)
+            error_results.append(errorScores)
+
+            # OH TO MANY MAGIC NUMBERS - THIS 100 IS SETTING PRECISION FOR FLOAT NUMBERS
 
             if self.lowestScore > errorScores:
                 theBestCopy = copyImg
@@ -74,13 +94,14 @@ class Painter:
         if len(theBestCopy):
             self.img = theBestCopy
 
-        return results
+        return error_results
 
     # @timeit
     def decode(self,genome):
 
         length = int(self.genLen/self.n_params)
         pos_x,pos_y,radius, rotation, brushes, colors = [0]*length,[0]*length,[0]*length,[0]*length,[None]*length,[(0,0,0)]*length
+
         for n in range(0,len(genome),self.n_params):
             pos_x[int(n/self.n_params)]  = int(genome[n]%480)
             pos_y[int(n/self.n_params)]  = int(genome[n+1]%480)
@@ -90,56 +111,86 @@ class Painter:
             if self.greyScale:
                 colors[int(n/self.n_params)] = int(genome[n+5]%255)
             else:
-                colors[int(n/self.n_params)] = (int(genome[n+5]%255),int((genome[n+5]/1000)%255) ,int((genome[n+5]/1000000)%255))
+                colors[int(n/self.n_params)] = [int(genome[n+5]%255),int((genome[n+6])%255),int((genome[n+7])%255)]
 
         # print(colors)
         
-        overlay = np.copy(self.img)
+        # overlay = np.copy(self.img)
         copyImg = np.copy(self.img)
         for x,y,r,rot, brush, color in zip(pos_x,pos_y,radius,rotation, brushes, colors):
-            brush_background = np.zeros(copyImg.shape, dtype="uint8")
-            mask = np.zeros(copyImg.shape[:2], dtype="uint8")
-            r = r%200
+            r = r % 200
             if r == 0:
                 r = 1
-
+            mask = np.zeros(copyImg.shape[:2], dtype="uint8")    
+        
             brush_rotated = rotate_image(brush,rot) 
             brush_resized = cv2.resize(brush_rotated,(r,r))
             brush_w, brush_h = mask[x:x+r,y:y+r].shape[:2]
 
             mask[x:x+r,y:y+r] = brush_resized[:brush_w,:brush_h]
-            (thresh, mask) = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
+            (_, mask) = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
 
-            cv2.rectangle(brush_background,(0,0), (copyImg.shape[1],copyImg.shape[0]) , color,-1)
-            masked_brush = cv2.bitwise_and(brush_background,brush_background,mask=mask)
-            masked_img = cv2.bitwise_and(copyImg,copyImg,mask=cv2.bitwise_not(mask,mask))
-            copyImg = cv2.bitwise_or(masked_img.copy(),masked_brush.copy())
-        copyImg = cv2.addWeighted(overlay,0.5,copyImg,0.5,0)
+            copyImg = self.paintBrush(copyImg,mask,color)
 
-        # calculate score
-        self.blurredImg = cv2.blur(self.refImg, (self.blurKernelSize, self.blurKernelSize))
+        return (self.compare(self.refImg,copyImg),copyImg)
 
-        diff1 = cv2.subtract(self.blurredImg, copyImg) #values are too low
-        diff2 = cv2.subtract(copyImg,self.blurredImg) #values are too high
-        totalDiff = cv2.add(diff1, diff2)
-        totalDiff = np.sum(totalDiff)/(self.width*self.height)
+    def paintBrush(self, img, mask, color):
 
-        return (totalDiff,copyImg)
+        brush_background = self.brush_background
+        cv2.rectangle(brush_background,(0,0), (mask.shape[1],mask.shape[0]) , color, cv2.FILLED)
+        brush_background = cv2.addWeighted(img.copy(), 0.5, brush_background, 0.5, 0)
+        masked_brush = cv2.bitwise_and(brush_background,brush_background,mask=mask)
+        masked_img   = cv2.bitwise_and(img,img,mask=cv2.bitwise_not(mask,mask))
+        newImg       = cv2.bitwise_or(masked_img,masked_brush)
+        
+        return newImg
+
+
+    def compare(self,refImg,newImg):
+
+        diff1       = cv2.subtract(refImg, newImg) #values are too low
+        diff2       = cv2.subtract(newImg,refImg) #values are too high
+        totalDiff   = cv2.add(diff1, diff2)
+        totalDiff   = np.sum(totalDiff)/(self.width*self.height)
+
+        return totalDiff
+
+    def update_blur(self,refImg):
+        mask = np.zeros(refImg.shape[:2], np.uint8)
+        H,W = refImg.shape[:2]
+        cv2.circle(mask, (int(W/2),int(H/2)-20), self.size_of_unblur, (255,255,255), -1, cv2.LINE_AA)
+        mask = cv2.GaussianBlur(mask, (self.blurKernelSize,self.blurKernelSize),11)
+        blured = cv2.GaussianBlur(refImg, (self.blurKernelSize,self.blurKernelSize), self.blurKernelSize)
+        if(self.size_of_unblur < 100):
+            cv2.rectangle(blured,(0,0), (mask.shape[1],mask.shape[0]) , (255,255,255), cv2.FILLED)
+
+        self.blurredImg = alphaBlend(refImg, blured, 255 - mask)
+
+        # we need to update lowestScore so algorithm can reset and paint other details
+        self.lowestScore = self.compare(self.blurredImg,self.img)
+        cv2.imshow("blurredImg",self.blurredImg)
 
     # @timeit
     def epoch(self,epoch,genomes,population):
         errorScores = self.paint(genomes)
-        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=int(10),maxPopulation=population,genomePurifying=True)
+        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=2,maxPopulation=population,genomePurifying=True)
 
         self.paintTheBest()
 
-        if self.blurKernelSize > 1 and epoch % 20 == 0:
-            self.blurKernelSize -= 5
-            self.blurKernelSize = max(self.blurKernelSize,1)
+        # if self.blurKernelSize > 1 and epoch % 10 == 0:
+        #     self.blurKernelSize -= 8
+        #     self.size_of_unblur = (self.size_of_unblur + 1) % 200
+        #     self.blurKernelSize = max(self.blurKernelSize,1)
+        #     self.update_blur(self.refImg)
 
         return genomes
 
-    def run(self,genLen = 20, n_params = 6,population = 200, epochs = 1000):
+    def run(self,genLen = 20,population = 10, epochs = 1000):
+        if not self.greyScale:
+            n_params = 8 # if RGB then we need two more genes for colors
+        else:
+            n_params = 6
+        
         self.n_params = n_params
         self.genLen = genLen * self.n_params
         genomes = [np.random.randint(2**31,size=(self.genLen)) for _ in range(population)]
@@ -151,7 +202,7 @@ class Painter:
                 if self.greyScale:
                     self.frames.append(self.img)
                 else:
-                    self.frames.append(cv2.cvtColor(self.img, cv2.COLOR_RGB2BGR))
+                    self.frames.append(self.img)
 
         imageio.mimsave(f'{self.reference[:-4]}.gif', self.frames, fps=30)
         clip = mp.VideoFileClip(f'{self.reference[:-4]}.gif')
@@ -161,7 +212,7 @@ class Painter:
     def paintTheBest(self):
 
         cv2.imshow('painted image',self.img)
-        cv2.imshow('reference image',self.blurredImg)
+        cv2.imshow('reference image',self.refImg)
         if self.lowestScore == 0.0:
             cv2.waitKey(0)
         else:
@@ -175,10 +226,12 @@ if __name__=="__main__":
     parser.add_argument("-f", '--file', dest="file", help="Reference picture", type=str, default="Lena.png")
     parser.add_argument("-cb", '--concurent_brushes', dest="concurent_brushes", help="Number of concurent brushes to run", type=int, default=20)
     parser.add_argument("-g", '--gray', dest="gray_scale", help="Decides if you want image in greyscale or not", type=bool, default=False)
+    parser.add_argument("-gen", '--genomes', dest="genomes", help="Decides on number of used concurent genomes", type=int, default=20)
+    parser.add_argument("-epochs", '--epochs', dest="epochs", help="Decides on number of epochs", type=int, default=1000)
     args = parser.parse_args()
 
     painter = Painter(args.file,args.gray_scale)
-    painter.run(args.concurent_brushes)
+    painter.run(genLen = args.concurent_brushes,population = args.genomes, epochs= args.epochs)
 
 
 # Load image using PIL

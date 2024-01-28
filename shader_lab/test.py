@@ -6,6 +6,7 @@ from PIL import Image
 import time
 
 width, height = 512, 512
+num_brushes = 100
 
 # Vertex Shader for Background
 background_vertex_shader_source = """
@@ -34,31 +35,32 @@ void main()
 """
 
 # Vertex Shader for Triangles
-triangle_vertex_shader_source = """
+triangle_vertex_shader_source = f"""
 #version 330 core
-layout(location = 0) in vec2 in_position;
-uniform vec2 translations;
-uniform float rotation;
+//layout(location = 0) in vec2 in_position;
+uniform vec2  translations[{num_brushes}];
+uniform float rotations[{num_brushes}];
 
 void main()
-{
-    vec2 translated_position = in_position + translations;
-    mat2 rotation_matrix = mat2(cos(rotation), -sin(rotation),
-                                 sin(rotation), cos(rotation));
-    gl_Position = vec4(rotation_matrix * translated_position, 0.0, 0.5);
-}
+{{
+    int index = gl_VertexID % 100;
+    vec2 translated_position = translations[index];
+    mat2 rotation_matrix = mat2(cos(rotations[index]), -sin(rotations[index]),
+                                 sin(rotations[index]), cos(rotations[index]));
+    gl_Position = vec4(rotation_matrix[index] * translated_position[index], 0.0, 0.5);
+}}
 """
 
 # Fragment Shader for Triangles
-triangle_fragment_shader_source = """
+triangle_fragment_shader_source = f"""
 #version 330 core
 layout(location = 0) out vec4 frag_color;
-uniform vec3 triangle_color;
+uniform vec3 triangle_colors[{num_brushes}];
 
 void main()
-{
-    frag_color = vec4(triangle_color, 1.0);
-}
+{{
+    frag_color = vec4(triangle_colors[0], 1.0);
+}}
 """
 
 image_array = np.zeros((width, height))
@@ -82,12 +84,32 @@ def initialize():
     triangle_shader_program = shaders.compileProgram(triangle_vertex_shader, triangle_fragment_shader)
     glUseProgram(triangle_shader_program)
 
-    # Set up uniform locations for triangles
-    translations_loc = glGetUniformLocation(triangle_shader_program, "translations")
-    rotation_loc = glGetUniformLocation(triangle_shader_program, "rotation")
-    color_loc = glGetUniformLocation(triangle_shader_program, "triangle_color")
+    # Create and bind VBOs for translations, rotations, and scales
+    #TODO: problem is here 
+    translations_vbo = glGenBuffers(1)
+    glBindBuffer(GL_ARRAY_BUFFER, translations_vbo)
+    translations_loc = glGetAttribLocation(triangle_shader_program, "translations")
+    glVertexAttribPointer(translations_loc, 2, GL_FLOAT, GL_FALSE, 0, None)
+    glEnableVertexAttribArray(translations_loc)
 
-    return (background_shader_program,triangle_shader_program,translations_loc,rotation_loc,color_loc)
+    # rotations_vbo = glGenBuffers(1)
+    # glBindBuffer(GL_ARRAY_BUFFER, rotations_vbo)
+    # rotations_loc = glGetAttribLocation(triangle_shader_program, "rotations")
+    # glVertexAttribPointer(rotations_loc, 1, GL_FLOAT, GL_FALSE, 0, None)
+    # glEnableVertexAttribArray(rotations_loc)
+
+    # colors_vbo = glGenBuffers(1)
+    # glBindBuffer(GL_ARRAY_BUFFER, colors_vbo)
+    # colors_loc = glGetAttribLocation(triangle_shader_program, "triangle_colors")
+    # glVertexAttribPointer(colors_loc, 1, GL_FLOAT, GL_FALSE, 0, None)
+    # glEnableVertexAttribArray(colors_loc)
+
+    return (background_shader_program,triangle_shader_program,translations_vbo,rotations_vbo,colors_vbo)
+
+def update_vbo(vbo,buffor):
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, buffor.nbytes, buffor, GL_STATIC_DRAW)
+
 
 def load_texture_from_array(image_array):
     texture_id = glGenTextures(1)
@@ -110,21 +132,22 @@ def draw_background():
     glEnd()
 
 def draw_triangles():
-    vertices = np.array([[-0.5, -0.5], [0.5, -0.5], [0.0, 0.5]], dtype=np.float32)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glDrawArrays(GL_TRIANGLES, 0, 3 * 100)
+    # # vertices = np.array([[-0.2, -0.2], [0.2, -0.2], [0.0, 0.2]], dtype=np.float32)
 
-    for i in range(1):
-        translations = np.random.rand(2) * 2.0 - 1.0
-        rotation = np.random.rand() * 2 * np.pi
-        color = np.random.rand(3).astype(np.float32)
+    #     # translations = np.random.rand(2) * 2.0 - 1.0
+    #     # rotation     = np.random.rand() * 2 * np.pi
+    #     # color        = np.random.rand(3).astype(np.float32)
 
-        glUniform2fv(translations_loc, 1, translations)
-        glUniform1f(rotation_loc, rotation)
-        glUniform3fv(color_loc, 1, color)
+    #     glUniform2fv(translations_loc, 1, translations)
+    #     glUniform1f(rotation_loc, rotation)
+    #     glUniform3fv(color_loc, 1, color)
 
-        glBegin(GL_TRIANGLES)
-        for vertex in vertices:
-            glVertex2f(*vertex)
-        glEnd()
+    #     glBegin(GL_TRIANGLES)
+    #     for vertex in vertices:
+    #         glVertex2f(*vertex)
+    #     glEnd()
 
 def draw():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
@@ -148,8 +171,8 @@ def save_texture():
 
     # Now you can use the 'image_data' NumPy array as needed
     # Save the NumPy array as an image using Pillow
-    image = Image.fromarray(image_data)
-    image.save("output_texture.png")
+    # image = Image.fromarray(image_data)
+    # image.save("output_texture.png")
     return image_data
 
 def main_loop():
@@ -163,23 +186,31 @@ def main_loop():
     glutMainLoopEvent()
     image_array = save_texture()
     # Use texture unit 0 for the background texture
-    time.sleep(1)
-
+    # time.sleep(1)
 
 if __name__ == "__main__":
     # Load your image as a NumPy array (replace this line with your image loading code)
     
+    # Generate random data for 100 triangles
+    translations = np.random.rand(num_brushes, 2) * 2.0 - 1.0
+    rotations = np.random.rand(num_brushes) * 2 * np.pi
+    colors = np.random.rand(num_brushes, 3)
+
     glutInit()
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
     glutCreateWindow("Textured Background with Triangles")
     glutReshapeWindow(width, height)
 
-    background_shader_program,triangle_shader_program,translations_loc,rotation_loc,color_loc = initialize()
-    image_array = save_texture()
+    background_shader_program,triangle_shader_program,translations_vbo,rotation_vbo,color_vbo = initialize()
+
+    # update_vbo(translations_vbo,translations)
+    # update_vbo(rotation_vbo,rotations)
+    # update_vbo(color_vbo,colors)
+    # image_array = save_texture()
     
-    glutDisplayFunc(draw)
+    # glutDisplayFunc(draw)
 
     # Use glutIdleFunc to continuously redraw in the main loop
-    glutIdleFunc(main_loop)
+    # glutIdleFunc(main_loop)
 
     glutMainLoop()

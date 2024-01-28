@@ -140,7 +140,7 @@ def draw():
     glutSwapBuffers()
 
 def save_texture():
-    # glReadBuffer(GL_FRONT)
+    glReadBuffer(GL_FRONT)
     pixels = glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE)
 
     # Convert the pixel data to a NumPy array

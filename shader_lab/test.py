@@ -7,7 +7,7 @@ import time
 
 width, height = 512, 512
 image_array = np.zeros((width, height))
-num_brushes = 10
+num_brushes = 1
 
 # Vertex Shader for Background
 background_vertex_shader_source = """
@@ -41,13 +41,13 @@ triangle_vertex_shader_source = f"""
 layout(location = 0) in vec2 in_position;
 uniform vec2  translations[{num_brushes}];
 uniform float rotations[{num_brushes}];
-uniform vec3 triangle_colors[{num_brushes}];
+uniform vec3  triangle_colors[{num_brushes} * 3];
 
 out vec3 aColor; // Varying variable to pass color to fragment shader
 
 void main()
 {{
-    int index = gl_VertexID % 100;
+    int index = gl_VertexID % ({num_brushes} * 3);
     vec2 translated_position = in_position + translations[index];
     mat2 rotation_matrix = mat2(cos(rotations[index]), -sin(rotations[index]),
                                  sin(rotations[index]), cos(rotations[index]));
@@ -117,21 +117,21 @@ def draw_background():
     glEnd()
 
 def draw_triangles():
-    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
-    glDrawArrays(GL_TRIANGLES, 0, 3 * 100)
+    glDrawArrays(GL_TRIANGLES, 0, 3 * num_brushes)
 
 def draw():
-    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
     # Draw background
-    glUseProgram(background_shader_program)
-    draw_background()
+    # glUseProgram(background_shader_program)
+    # draw_background()
 
     # Draw triangles on top of the background
     glUseProgram(triangle_shader_program)
     draw_triangles()
 
     glutSwapBuffers()
+    time.sleep(1)
 
 def save_texture():
     glReadBuffer(GL_FRONT)
@@ -161,10 +161,17 @@ def main_loop():
     glActiveTexture(GL_TEXTURE0)
     glBindTexture(GL_TEXTURE_2D, background_texture)
 
+    points_array = np.array([[-1.0,-1.0],[1.0,-1.0],[0.0,1.0]])
     translations = np.random.rand(num_brushes, 2) * 2.0 - 1.0
-    rotations = np.random.rand(num_brushes) * 2 * np.pi
-    colors = np.random.rand(num_brushes, 3)
+    rotations    = np.random.rand(num_brushes) * 2 * np.pi
+    colors       = np.random.rand(num_brushes, 3)
 
+    points_array = np.tile(points_array, (num_brushes, 1))
+    translations = np.repeat(translations,3,axis=0) + points_array
+    print(translations)
+    rotations = np.repeat(rotations,3,axis=0)
+    colors = np.repeat(colors,3,axis=0)
+    
     update_location_2fv(translations_loc, num_brushes,translations)
     update_location_1fv(rotation_loc, num_brushes,rotations)
     update_location_3fv(color_loc, num_brushes,colors)

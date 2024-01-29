@@ -7,7 +7,7 @@ import time
 
 width, height = 512, 512
 image_array = np.zeros((width, height))
-num_brushes = 2
+num_brushes = 10
 
 # Vertex Shader for Background
 background_vertex_shader_source = """
@@ -38,33 +38,33 @@ void main()
 # Vertex Shader for Triangles
 triangle_vertex_shader_source = f"""
 #version 330 core
-//layout(location = 0) in vec2 in_position;
+layout(location = 0) in vec2 in_position;
 uniform vec2  translations[{num_brushes}];
 uniform float rotations[{num_brushes}];
 uniform vec3 triangle_colors[{num_brushes}];
 
-//out vec3 aColor; // Varying variable to pass color to fragment shader
+out vec3 aColor; // Varying variable to pass color to fragment shader
 
 void main()
 {{
     int index = gl_VertexID % 100;
-    vec2 translated_position = translations[index];
+    vec2 translated_position = in_position + translations[index];
     mat2 rotation_matrix = mat2(cos(rotations[index]), -sin(rotations[index]),
                                  sin(rotations[index]), cos(rotations[index]));
     gl_Position = vec4(rotation_matrix[index] * translated_position[index], 0.0, 1.0);
-  //  aColor = triangle_colors[index];
+    aColor = triangle_colors[index];
 }}
 """
 
 # Fragment Shader for Triangles
 triangle_fragment_shader_source = f"""
 #version 330 core
-//in vec3 aColor;
+in vec3 aColor;
 layout(location = 0) out vec4 frag_color;
 
 void main()
 {{
-    frag_color = vec4(255.0,255.0,0.0, 1.0);
+    frag_color = vec4(aColor, 1.0);
 }}
 """
 
@@ -117,11 +117,11 @@ def draw_background():
     glEnd()
 
 def draw_triangles():
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glDrawArrays(GL_TRIANGLES, 0, 3 * 100)
 
 def draw():
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+    # glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
     # Draw background
     glUseProgram(background_shader_program)
@@ -157,7 +157,6 @@ def load_texture_from_array(image_array):
 def main_loop():
     global image_array
 
-    print(np.sum(image_array))
     background_texture = load_texture_from_array(image_array)    
     glActiveTexture(GL_TEXTURE0)
     glBindTexture(GL_TEXTURE_2D, background_texture)
@@ -173,7 +172,6 @@ def main_loop():
     glutPostRedisplay()
     glutMainLoopEvent()
     image_array = save_texture()
-    print(np.sum(image_array))
     # Use texture unit 0 for the background texture
     # time.sleep(1)
 

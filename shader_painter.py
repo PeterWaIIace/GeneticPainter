@@ -16,6 +16,8 @@ class ShaderPainter:
         glutReshapeWindow(self.width, self.height)
 
         self.initialize()
+        glEnable(GL_BLEND)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         pass
 
     def init_basics(self,brushes, width = 400, height= 400):
@@ -79,7 +81,7 @@ class ShaderPainter:
 
         void main()
         {{
-            frag_color = vec4(aColor, 1.0);
+            frag_color = vec4(aColor, 0.5);
         }}
         """
 

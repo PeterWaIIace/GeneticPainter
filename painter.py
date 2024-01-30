@@ -74,8 +74,6 @@ class Painter:
         # # here change brushes
         # self.brush = np.zeros((20,20,1))
         # cv2.circle(self.brush,(10,10), 10, 255,-1)
-            
-        self.shader_painter = sp.ShaderPainter(120)
     
     def paint_shader(self,genomes):
 
@@ -192,8 +190,8 @@ class Painter:
         diff1       = cv2.subtract(refImg, newImg) #values are too low
         diff2       = cv2.subtract(newImg,refImg) #values are too high
         totalDiff   = cv2.add(diff1, diff2)
+        cv2.imshow("totalDiff",totalDiff)
         totalDiff   = np.sum(totalDiff)/(self.width*self.height)
-
         return totalDiff
 
     def update_blur(self,refImg):
@@ -215,7 +213,7 @@ class Painter:
     def epoch(self,epoch,genomes,population):
         # errorScores = self.paint(genomes)
         errorScores = self.paint_shader(genomes)
-        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=2,maxPopulation=population,genomePurifying=True)
+        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.75,ms=10,maxPopulation=population,genomePurifying=True)
 
         self.paintTheBest()
 
@@ -228,6 +226,8 @@ class Painter:
         return genomes
 
     def run(self,genLen = 20,population = 10, epochs = 1000):
+
+        self.shader_painter = sp.ShaderPainter(genLen)
         if not self.greyScale:
             n_params = 8 # if RGB then we need two more genes for colors
         else:

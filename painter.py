@@ -39,7 +39,8 @@ def alphaBlend(img1, img2, mask):
 
 class Painter:
 
-    def __init__(self,reference,greyScale=True):
+    def __init__(self,reference,greyScale=True, shader = False):
+        self.shader = shader
         self.frames = []
         self.fps = 2000
         self.reference = reference
@@ -84,7 +85,6 @@ class Painter:
         # for genome in genomes:
         self.shader_painter.load_texture_from_array(self.img)
         for genome in genomes:
-            print(len(genome) * len(genomes))
             translations,rotations,colors,brush_size = self.decode_for_shader(genome)
             copyImg = self.shader_painter.paint(translations,rotations,colors,brush_size).copy()[:,:,[2,1,0]]
             
@@ -217,7 +217,10 @@ class Painter:
         improved = False
         # errorScores = self.paint(genomes)
         # while not improved:
-        errorScores,improved = self.paint_shader(genomes)
+        if self.shader:
+            errorScores,improved = self.paint_shader(genomes)
+        else:
+            errorScores,improved = self.paint(genomes)
             # if not improved:
             #     genomes = GA.mixAndMutate(genomes,errorScores,mr=0.9,ms=int(self.n_params*0.9),maxPopulation=population,genomePurifying=False)
 
@@ -264,13 +267,14 @@ class Painter:
 if __name__=="__main__":
     parser = argparse.ArgumentParser("Genetic Painter")
     parser.add_argument("-f", '--file', dest="file", help="Reference picture", type=str, default="Lena.png")
-    parser.add_argument("-cb", '--concurent_brushes', dest="concurent_brushes", help="Number of concurent brushes to run", type=int, default=20)
+    parser.add_argument("-cb", '--concurent_brushes', dest="concurent_brushes", help="Number of concurent brushes to run", type=int, default=4)
     parser.add_argument("-g", '--gray', dest="gray_scale", help="Decides if you want image in greyscale or not", type=bool, default=False)
-    parser.add_argument("-gen", '--genomes', dest="genomes", help="Decides on number of used concurent genomes", type=int, default=20)
-    parser.add_argument("-epochs", '--epochs', dest="epochs", help="Decides on number of epochs", type=int, default=1000)
+    parser.add_argument("-gen", '--genomes', dest="genomes", help="Decides on number of used concurent genomes", type=int, default=40)
+    parser.add_argument("-epochs", '--epochs', dest="epochs", help="Decides on number of epochs", type=int, default=2000)
+    parser.add_argument("-shader", '--shader', dest="shader", help="Decides on using shader or not", type=bool, default=False)
     args = parser.parse_args()
 
-    painter = Painter(args.file,args.gray_scale)
+    painter = Painter(args.file,args.gray_scale,args.shader)
     painter.run(genLen = args.concurent_brushes,population = args.genomes, epochs= args.epochs)
 
 

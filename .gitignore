@@ -2,5 +2,7 @@
 .vscode/settings.json
 *.gif
 *.jpg
+*.mp4
 ./*.png
 ./*.mp4
+outputs/*

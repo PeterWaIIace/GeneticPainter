@@ -216,13 +216,14 @@ class Painter:
     def epoch(self,epoch,genomes,population):
         improved = False
         # errorScores = self.paint(genomes)
-        # while not improved:
-        if self.shader:
-            errorScores,improved = self.paint_shader(genomes)
-        else:
-            errorScores,improved = self.paint(genomes)
-            # if not improved:
-            #     genomes = GA.mixAndMutate(genomes,errorScores,mr=0.9,ms=int(self.n_params*0.9),maxPopulation=population,genomePurifying=False)
+        while not improved:
+            if self.shader:
+                errorScores,improved = self.paint_shader(genomes)
+            else:
+                errorScores,improved = self.paint(genomes)
+        
+            if not improved:
+                genomes = GA.mixAndMutate(genomes,errorScores,mr=0.9,ms=int(self.n_params*0.9),maxPopulation=population,genomePurifying=False)
 
         genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=int(self.n_params*0.5),maxPopulation=population,genomePurifying=False)
         self.paintTheBest()
@@ -245,7 +246,7 @@ class Painter:
                 if self.greyScale:
                     self.frames.append(self.img)
                 else:
-                    self.frames.append(self.img)
+                    self.frames.append(self.img.copy()[:,:,[2,1,0]])
 
         imageio.mimsave(f'{self.reference[:-4]}.gif', self.frames, fps=30)
         clip = mp.VideoFileClip(f'{self.reference[:-4]}.gif')

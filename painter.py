@@ -85,11 +85,9 @@ class Painter:
         # for genome in genomes:
         for genome in genomes:
             translations,rotations,colors,brush_size = self.decode_for_shader(genome)
-            copyImg = self.shader_painter.paint(translations,rotations,colors)
+            copyImg = self.shader_painter.paint(translations,rotations,colors,brush_size)
             
-            print(self.refImg.shape,copyImg.shape)
             errorScores = self.compare(self.refImg,copyImg)
-            print(errorScores)
             error_results.append(errorScores)
 
             if self.lowestScore > errorScores:
@@ -125,18 +123,17 @@ class Painter:
 
     def decode_for_shader(self,genome):
 
-        translations_x =  genome[0::self.n_params]
-        translations_y =  genome[1::self.n_params]
+        translations_x =  genome[0::self.n_params]/np.uint32(-1) * 2.0 - 1.0
+        translations_y =  genome[1::self.n_params]/np.uint32(-1) * 2.0 - 1.0
         translations = np.column_stack((translations_x, translations_y))
 
-        rotations      =  genome[2::self.n_params]
-        red            =  genome[3::self.n_params]
-        blue           =  genome[4::self.n_params]
-        green          =  genome[5::self.n_params]
-        colors = np.column_stack((red, blue, green))
-
-        brush_size     =  genome[6::self.n_params]
-
+        rotations      =  genome[2::self.n_params] % 360
+        red            =  genome[3::self.n_params]/np.uint32(-1)
+        blue           =  genome[4::self.n_params]/np.uint32(-1)
+        green          =  genome[5::self.n_params]/np.uint32(-1)
+        colors = np.column_stack((red, green, blue))
+        brush_size    =  genome[6::self.n_params]/np.uint32(-1)
+        
         return translations,rotations,colors,brush_size
 
 

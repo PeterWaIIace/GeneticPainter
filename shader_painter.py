@@ -19,6 +19,7 @@ class ShaderPainter:
         pass
 
     def init_basics(self,brushes, width = 400, height= 400):
+        self.scale_factor = 1.0
         self.width, self.height = width, height
         self.image_array = np.zeros((self.width, self.height))
         self.num_brushes = brushes
@@ -52,9 +53,10 @@ class ShaderPainter:
         # Vertex Shader for Triangles
         self.triangle_vertex_shader_source = f"""
         #version 330 core
+        uniform vec3  triangle_colors[{3 * self.num_brushes}];
         uniform vec2  translations[{3 * self.num_brushes}];
         uniform float rotations[{3 * self.num_brushes}];
-        uniform vec3  triangle_colors[{3 * self.num_brushes}];
+        uniform float brush_size[{3 * self.num_brushes}];
 
         out vec3 aColor; // Varying variable to pass color to fragment shader
 
@@ -179,8 +181,9 @@ class ShaderPainter:
             [0.0, 0.5]     # Vertex 3
         ])
 
+        new_brush_size = np.repeat(self.scale_factor,3,axis=0)
         points_array = np.tile(points_array, (self.num_brushes, 1))
-        translations = np.repeat(self.translations,3,axis=0) + points_array
+        translations = np.repeat(self.translations,3,axis=0) + (points_array * new_brush_size[:, np.newaxis]) 
         rotations    = np.repeat(self.rotations,3,axis=0)
         colors       = np.repeat(self.colors,3,axis=0)
 
@@ -191,9 +194,10 @@ class ShaderPainter:
         glutPostRedisplay()
         self.image_array = self.save_texture()
 
-    def paint(self,translations,rotations,colors):
+    def paint(self,translations,rotations,colors,brush_size):
     
         self.translations = translations
+        self.scale_factor = brush_size
         self.rotations = rotations
         self.colors = colors
 
@@ -211,12 +215,12 @@ class ShaderPainter:
 if __name__ == "__main__":
 
     num_brushes = 120
-    translations = np.random.rand(num_brushes, 2) * 2.0 - 1.0
-    rotations    = np.random.rand(num_brushes) * 2 * np.pi
-    colors       = np.random.rand(num_brushes, 3)
-
+    
     painter = ShaderPainter(num_brushes)
-    image = painter.paint(translations,rotations,colors)
-    image = painter.paint(translations,rotations,colors)
+    for _ in range(200):
+        translations = np.random.rand(num_brushes, 2) * 2.0 - 1.0
+        rotations    = np.random.rand(num_brushes) * 2 * np.pi
+        colors       = np.random.rand(num_brushes, 3) * 0.0
+        size         = np.random.rand(num_brushes, 1)
 
-    print(image)
+        image = painter.paint(translations,rotations,colors,size)

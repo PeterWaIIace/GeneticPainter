@@ -7,8 +7,8 @@ import time
 
 class ShaderPainter:
 
-    def __init__(self,brushes):
-        self.init_basics(brushes)
+    def __init__(self,brushes,width = 400, height= 400):
+        self.init_basics(brushes,width,height)
 
         glutInit()
         glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH)
@@ -20,10 +20,11 @@ class ShaderPainter:
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
         pass
 
-    def init_basics(self,brushes, width = 400, height= 400):
+    def init_basics(self,brushes, width , height):
         self.scale_factor = 1.0
         self.width, self.height = width, height
-        self.image_array = np.zeros((self.width, self.height))
+        self.image_array = np.ones((self.width, self.height,3))
+        self.load_texture_from_array(self.image_array)
         self.num_brushes = brushes
 
         # Vertex Shader for Background
@@ -48,7 +49,10 @@ class ShaderPainter:
 
         void main()
         {
-            frag_color = texture(background_texture, tex_coords);
+            vec4 tex_color = texture(background_texture, tex_coords);
+            //tex_color.a *= 0.5;
+
+            frag_color = tex_color;
         }
         """
 
@@ -140,8 +144,8 @@ class ShaderPainter:
 
         self.main_loop()
         # Draw background
-        # glUseProgram(background_shader_program)
-        # self.draw_background()
+        glUseProgram(self.background_shader_program)
+        self.draw_background()
 
         # Draw triangles on top of the background
         glUseProgram(self.triangle_shader_program)
@@ -163,19 +167,15 @@ class ShaderPainter:
         return image_data
 
     def load_texture_from_array(self,image_array):
-        texture_id = glGenTextures(1)
-        glBindTexture(GL_TEXTURE_2D, texture_id)
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, self.image_array.shape[1], self.image_array.shape[0], 0, GL_RGB, GL_UNSIGNED_BYTE, self.image_array)
+        self.texture_id = glGenTextures(1)
+        glBindTexture(GL_TEXTURE_2D, self.texture_id)
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, image_array.shape[1], image_array.shape[0], 0, GL_RGB, GL_UNSIGNED_BYTE, image_array)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
-        return texture_id
-
+        
     def main_loop(self):
-        global image_array
-
-        # background_texture = self.load_texture_from_array(self.image_array)    
-        # glActiveTexture(GL_TEXTURE0)
-        # glBindTexture(GL_TEXTURE_2D, background_texture)
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, self.texture_id)
 
         points_array = np.array([
             [-0.5, -0.5],  # Vertex 1

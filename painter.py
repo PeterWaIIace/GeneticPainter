@@ -76,14 +76,17 @@ class Painter:
         # cv2.circle(self.brush,(10,10), 10, 255,-1)
     
     def paint_shader(self,genomes):
-
+        improved = False
         theBestCopy = []
         error_results = []
 
         # for genome in genomes:
+        self.shader_painter.load_texture_from_array(self.img)
         for genome in genomes:
             translations,rotations,colors,brush_size = self.decode_for_shader(genome)
             copyImg = self.shader_painter.paint(translations,rotations,colors,brush_size)
+            
+            #convert to brg for opencv
             
             errorScores = self.compare(self.refImg,copyImg)
             error_results.append(errorScores)
@@ -91,15 +94,16 @@ class Painter:
             if self.lowestScore > errorScores:
                 theBestCopy = copyImg
                 self.lowestScore = errorScores
+                improved = True
 
         if len(theBestCopy):
             self.img = theBestCopy
 
-        return error_results
+        return error_results,improved
 
     # @timeit
     def paint(self,genomes):
-
+        improved = False
         theBestCopy = []
         error_results = []
 
@@ -113,24 +117,25 @@ class Painter:
             if self.lowestScore > errorScores:
                 theBestCopy = copyImg
                 self.lowestScore = errorScores
+                improved = True
 
         if len(theBestCopy):
             self.img = theBestCopy
 
-        return error_results
+        return error_results,improved
 
     def decode_for_shader(self,genome):
 
-        translations_x =  genome[0::self.n_params]/np.uint32(-1) * 2.0 - 1.0
-        translations_y =  genome[1::self.n_params]/np.uint32(-1) * 2.0 - 1.0
+        translations_x =  ((genome[0::self.n_params]%480)/480.0) * 2.0 - 1.0
+        translations_y =  ((genome[1::self.n_params]%480)/480.0) * 2.0 - 1.0
         translations = np.column_stack((translations_x, translations_y))
 
-        rotations      =  genome[2::self.n_params] % 360
-        red            =  genome[3::self.n_params]/np.uint32(-1)
-        blue           =  genome[4::self.n_params]/np.uint32(-1)
-        green          =  genome[5::self.n_params]/np.uint32(-1)
+        rotations      =  ((genome[2::self.n_params]%360)) * np.pi/180
+        red            =  (genome[3::self.n_params]%1024/512) #/(np.uint32(-1)/2)
+        blue           =  (genome[4::self.n_params]%1024/512) #/(np.uint32(-1)/2)
+        green          =  (genome[5::self.n_params]%1024/512) #/(np.uint32(-1)/2)
         colors = np.column_stack((red, green, blue))
-        brush_size    =  genome[6::self.n_params]/np.uint32(-1)
+        brush_size     =  (genome[6::self.n_params]%480)/480.0 * 2.0 - 1.0
         
         return translations,rotations,colors,brush_size
 
@@ -138,38 +143,34 @@ class Painter:
     # @timeit
     def decode(self,genome):
 
-        length = int(self.genLen/self.n_params)
-        pos_x,pos_y,radius, rotation, brushes, colors = [0]*length,[0]*length,[0]*length,[0]*length,[None]*length,[(0,0,0)]*length
-
-        for n in range(0,len(genome),self.n_params):
-            pos_x[int(n/self.n_params)]  = int(genome[n]%480)
-            pos_y[int(n/self.n_params)]  = int(genome[n+1]%480)
-            radius[int(n/self.n_params)] = int(genome[n+2]%480)
-            brushes[int(n/self.n_params)] = self.brushes[int(genome[n+3])%len(self.brushes)]
-            rotation[int(n/self.n_params)] = int(genome[n+4]%360)
-            if self.greyScale:
-                colors[int(n/self.n_params)] = int(genome[n+5]%255)
-            else:
-                colors[int(n/self.n_params)] = [int(genome[n+5]%255),int((genome[n+6])%255),int((genome[n+7])%255)]
-
-        # print(colors)
         
+        pos_x =  genome[0::self.n_params]%480
+        pos_y =  genome[1::self.n_params]%480 
+        rotation = genome[2::self.n_params]%360
+        brushes  = np.zeros(len(rotation))
+        red      = genome[3::self.n_params]%255  #/(np.uint32(-1)/2)
+        blue     = genome[4::self.n_params]%255  #/(np.uint32(-1)/2)
+        green    = genome[5::self.n_params]%255  #/(np.uint32(-1)/2)
+        colors   = np.column_stack((blue, green, red))
+        radius   =  genome[6::self.n_params]%480
+
         # overlay = np.copy(self.img)
         copyImg = np.copy(self.img)
-        for x,y,r,rot, brush, color in zip(pos_x,pos_y,radius,rotation, brushes, colors):
+        
+        for x,y,r,rot,brush,color in zip(pos_x,pos_y,radius,rotation, brushes, colors):
             r = r % 200
             if r == 0:
                 r = 1
             mask = np.zeros(copyImg.shape[:2], dtype="uint8")    
         
-            brush_rotated = rotate_image(brush,rot) 
+            brush_rotated = rotate_image(self.brushes[int(brush)],rot) 
             brush_resized = cv2.resize(brush_rotated,(r,r))
             brush_w, brush_h = mask[x:x+r,y:y+r].shape[:2]
 
             mask[x:x+r,y:y+r] = brush_resized[:brush_w,:brush_h]
             (_, mask) = cv2.threshold(mask, 128, 255, cv2.THRESH_BINARY)
 
-            copyImg = self.paintBrush(copyImg,mask,color)
+            copyImg = self.paintBrush(copyImg,mask,tuple(map(int, color)))
 
         return (self.compare(self.refImg,copyImg),copyImg)
 
@@ -211,27 +212,22 @@ class Painter:
 
     # @timeit
     def epoch(self,epoch,genomes,population):
+        improved = False
         # errorScores = self.paint(genomes)
-        errorScores = self.paint_shader(genomes)
-        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.75,ms=10,maxPopulation=population,genomePurifying=True)
+        while not improved:
+            errorScores,improved = self.paint_shader(genomes)
+            if not improved:
+                genomes = GA.mixAndMutate(genomes,errorScores,mr=0.9,ms=int(self.n_params*0.9),maxPopulation=population,genomePurifying=True)
 
+        genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=int(self.n_params*0.2),maxPopulation=population,genomePurifying=True)
         self.paintTheBest()
-
-        # if self.blurKernelSize > 1 and epoch % 10 == 0:
-        #     self.blurKernelSize -= 8
-        #     self.size_of_unblur = (self.size_of_unblur + 1) % 200
-        #     self.blurKernelSize = max(self.blurKernelSize,1)
-        #     self.update_blur(self.refImg)
 
         return genomes
 
     def run(self,genLen = 20,population = 10, epochs = 1000):
-
-        self.shader_painter = sp.ShaderPainter(genLen)
-        if not self.greyScale:
-            n_params = 8 # if RGB then we need two more genes for colors
-        else:
-            n_params = 6
+ 
+        self.shader_painter = sp.ShaderPainter(genLen,self.width,self.height)
+        n_params = 7
         
         self.n_params = n_params
         self.genLen = genLen * self.n_params

@@ -18,8 +18,8 @@ class ShaderPainter:
         self.initialize()
         pass
 
-    def init_basics(self,brushes):
-        self.width, self.height = 512, 512
+    def init_basics(self,brushes, width = 400, height= 400):
+        self.width, self.height = width, height
         self.image_array = np.zeros((self.width, self.height))
         self.num_brushes = brushes
 

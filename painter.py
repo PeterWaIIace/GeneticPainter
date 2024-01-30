@@ -87,7 +87,9 @@ class Painter:
             translations,rotations,colors,brush_size = self.decode_for_shader(genome)
             copyImg = self.shader_painter.paint(translations,rotations,colors)
             
+            print(self.refImg.shape,copyImg.shape)
             errorScores = self.compare(self.refImg,copyImg)
+            print(errorScores)
             error_results.append(errorScores)
 
             if self.lowestScore > errorScores:

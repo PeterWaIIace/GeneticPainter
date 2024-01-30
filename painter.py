@@ -4,6 +4,7 @@ from tqdm import tqdm
 import concurrent.futures
 import numpy as np
 import argparse
+import shader_painter as sp
 import imageio
 import time
 import sys
@@ -73,6 +74,30 @@ class Painter:
         # # here change brushes
         # self.brush = np.zeros((20,20,1))
         # cv2.circle(self.brush,(10,10), 10, 255,-1)
+            
+        self.shader_painter = sp.ShaderPainter(120)
+    
+    def paint_shader(self,genomes):
+
+        theBestCopy = []
+        error_results = []
+
+        # for genome in genomes:
+        for genome in genomes:
+            translations,rotations,colors,brush_size = self.decode_for_shader(genome)
+            copyImg = self.shader_painter.paint(translations,rotations,colors)
+            
+            errorScores = self.compare(self.refImg,copyImg)
+            error_results.append(errorScores)
+
+            if self.lowestScore > errorScores:
+                theBestCopy = copyImg
+                self.lowestScore = errorScores
+
+        if len(theBestCopy):
+            self.img = theBestCopy
+
+        return error_results
 
     # @timeit
     def paint(self,genomes):
@@ -95,6 +120,23 @@ class Painter:
             self.img = theBestCopy
 
         return error_results
+
+    def decode_for_shader(self,genome):
+
+        translations_x =  genome[0::self.n_params]
+        translations_y =  genome[1::self.n_params]
+        translations = np.column_stack((translations_x, translations_y))
+
+        rotations      =  genome[2::self.n_params]
+        red            =  genome[3::self.n_params]
+        blue           =  genome[4::self.n_params]
+        green          =  genome[5::self.n_params]
+        colors = np.column_stack((red, blue, green))
+
+        brush_size     =  genome[6::self.n_params]
+
+        return translations,rotations,colors,brush_size
+
 
     # @timeit
     def decode(self,genome):
@@ -172,7 +214,8 @@ class Painter:
 
     # @timeit
     def epoch(self,epoch,genomes,population):
-        errorScores = self.paint(genomes)
+        # errorScores = self.paint(genomes)
+        errorScores = self.paint_shader(genomes)
         genomes = GA.mixAndMutate(genomes,errorScores,mr=0.5,ms=2,maxPopulation=population,genomePurifying=True)
 
         self.paintTheBest()

@@ -1,15 +1,18 @@
 import GeneticAlgorithm as GA
 import moviepy.editor as mp
 from tqdm import tqdm
-import concurrent.futures
 import numpy as np
 import argparse
-import shader_painter as sp
 import imageio
 import time
-import sys
 import cv2
 import os
+from sys import platform
+if platform == "linux" or platform == "linux2":
+    import shader_painter as sp
+else:
+    import dummy_painter as dp
+
 
 def timeit(function):
     def timing(*args, **kwargs):

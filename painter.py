@@ -11,7 +11,7 @@ from sys import platform
 if platform == "linux" or platform == "linux2":
     import shader_painter as sp
 else:
-    import dummy_painter as dp
+    import dummy_painter as sp
 
 
 def timeit(function):

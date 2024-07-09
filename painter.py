@@ -42,8 +42,9 @@ def alphaBlend(img1, img2, mask):
 
 class Painter:
 
-    def __init__(self,reference,greyScale=True, shader = False):
+    def __init__(self,reference,greyScale=True, shader = False, use_cirlces = False, background = ""):
         self.shader = shader
+        self.use_circles = use_cirlces
         self.frames = []
         self.fps = 2000
         self.reference = reference
@@ -68,7 +69,16 @@ class Painter:
         # self.update_blur(self.refImg)
 
         self.lowestScore = 1000000000
-        self.brush_background = np.zeros(self.img.shape, dtype="uint8")    
+        if len(background) <= 0:
+            self.img = np.ones(self.refImg.shape, np.uint8) * 255
+        else:
+            self.img = cv2.imread(background)
+            size = 400
+            if self.img.shape[0] > size  or self.img.shape[1] > size :
+                ratio = self.img.shape[0]/self.img.shape[1]
+                self.img = cv2.resize(self.img, (int(size /ratio),size ))
+
+        self.brush_background = np.zeros(self.img.shape, dtype="uint8")
         self.brushes = []
         f_brushes = os.listdir("brushes/")
         for f_brush in f_brushes:
@@ -130,7 +140,10 @@ class Painter:
 
         # for genome in genomes:
         for genome in genomes:
-            errorScores ,copyImg = self.decode(genome)
+            if not self.use_circles:
+                errorScores ,copyImg = self.decode(genome)
+            else:
+                errorScores ,copyImg = self.decode_circles(genome)
             error_results.append(errorScores)
 
             # OH TO MANY MAGIC NUMBERS - THIS 100 IS SETTING PRECISION FOR FLOAT NUMBERS
@@ -148,9 +161,8 @@ class Painter:
     # @timeit
     def decode(self,genome):
 
-        
         pos_x =  genome[0::self.n_params]%480
-        pos_y =  genome[1::self.n_params]%480 
+        pos_y =  genome[1::self.n_params]%480
         rotation = genome[2::self.n_params]%360
         brushes  = np.zeros(len(rotation))
         red      = genome[3::self.n_params]%255  #/(np.uint32(-1)/2)
@@ -177,7 +189,34 @@ class Painter:
 
             copyImg = self.paintBrush(copyImg,mask,tuple(map(int, color)))
 
+
         return (self.compare(self.refImg,copyImg),copyImg)
+
+    def decode_circles(self,genome):
+
+        overlay = np.copy(self.img)
+        copyImg = np.copy(self.img)
+
+        pos_x =  genome[0::self.n_params]%480
+        pos_y =  genome[1::self.n_params]%480
+        rotation = genome[2::self.n_params]%360
+        red      = genome[3::self.n_params]%255  #/(np.uint32(-1)/2)
+        blue     = genome[4::self.n_params]%255  #/(np.uint32(-1)/2)
+        green    = genome[5::self.n_params]%255  #/(np.uint32(-1)/2)
+        colors   = np.column_stack((blue, green, red))
+        radius   =  genome[6::self.n_params]%480
+
+        # pos_x,pos_y,radius,colors = [0]*self.genLen,[0]*self.genLen,[0]*self.genLen,[(0,0,0)]*self.genLen
+        
+        for x,y,r,rot,color in zip(pos_x,pos_y,radius,rotation, colors):
+            # repurpose rot to radius
+            r = rot
+            c = np.ndarray.tolist(color)
+            cv2.circle(copyImg,(x,y), int(r%60), c,-1)
+            copyImg = cv2.addWeighted(overlay,0.5,copyImg,0.5,0)
+
+        return (self.compare(self.refImg,copyImg),copyImg)
+
 
     def paintBrush(self, img, mask, color):
 
@@ -276,9 +315,11 @@ if __name__=="__main__":
     parser.add_argument("-gen", '--genomes', dest="genomes", help="Decides on number of used concurent genomes", type=int, default=40)
     parser.add_argument("-epochs", '--epochs', dest="epochs", help="Decides on number of epochs", type=int, default=2000)
     parser.add_argument("-shader", '--shader', dest="shader", help="Decides on using shader or not", type=bool, default=False)
+    parser.add_argument("-use_circles", '--use_circles', dest="use_circles", help="Decides on using shader or not", type=bool, default=False)
+    parser.add_argument("-use_background", '--use_background', dest="use_background", help="Reference picture for background", type=str, default="")
     args = parser.parse_args()
 
-    painter = Painter(args.file,args.gray_scale,args.shader)
+    painter = Painter(args.file, args.gray_scale, args.shader, args.use_circles, args.use_background)
     painter.run(genLen = args.concurent_brushes,population = args.genomes, epochs= args.epochs)
 
 
